@@ -95,6 +95,7 @@ def copy_item(src, dst):
     if not src.exists():
         print(f"  - skip (sumber tidak ada): {src.name}")
         return
+    dst.parent.mkdir(parents=True, exist_ok=True)
     backup_dir = dst.parent / f".backup-sync-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
     if dst.exists():
         if dst.is_dir():
