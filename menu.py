@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -100,16 +101,35 @@ def load_accounts():
     return accounts
 
 
+def profile_dirs(base):
+    """Semua direktori profil browser: Default + Profile 1..N."""
+    dirs = [base / "Default"]
+    if base.exists():
+        for d in sorted(base.glob("Profile *")):
+            if re.fullmatch(r"Profile \d+", d.name):
+                dirs.append(d)
+    return dirs
+
+
 def main_account_emails():
-    p = main_path() / "Default" / "Preferences"
-    if not p.exists():
-        return []
-    try:
-        d = json.loads(p.read_text(encoding="utf-8"))
-        ai = d.get("account_info", [])
-        return [a.get("email") for a in ai if isinstance(a, dict) and a.get("email")]
-    except Exception:
-        return []
+    """Email akun di avatar browser utama (account_info, semua profil)."""
+    base = main_path()
+    emails, seen = [], set()
+    for pd in profile_dirs(base):
+        p = pd / "Preferences"
+        if not p.exists():
+            continue
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+            ai = d.get("account_info", [])
+            for a in ai if isinstance(ai, list) else []:
+                e = a.get("email") if isinstance(a, dict) else None
+                if e and e not in seen:
+                    seen.add(e)
+                    emails.append(e)
+        except Exception:
+            continue
+    return emails
 
 
 def draw_table(accounts, synced):

@@ -1,4 +1,5 @@
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -114,31 +115,57 @@ def copy_item(src, dst):
     print(f"  ✓ disalin: {src.name}")
 
 
-def main_account_emails():
-    """Email akun yang tercatat di avatar Chrome utama (account_info)."""
-    p = get_main_root() / "Default" / "Preferences"
+def profile_dirs(base):
+    """Semua direktori profil Chrome: Default + Profile 1..N."""
+    dirs = [base / "Default"]
+    if base.exists():
+        for d in sorted(base.glob("Profile *")):
+            if re.fullmatch(r"Profile \d+", d.name):
+                dirs.append(d)
+    return dirs
+
+
+def emails_in_profile(pd):
+    p = pd / "Preferences"
     if not p.exists():
         return []
     try:
         d = json.loads(p.read_text(encoding="utf-8"))
         ai = d.get("account_info", [])
-        return [a.get("email") for a in ai if isinstance(a, dict) and a.get("email")]
+        return [a.get("email") for a in ai
+                if isinstance(ai, list) and isinstance(a, dict) and a.get("email")]
     except Exception:
         return []
 
 
+def account_emails(base):
+    """Email akun dari SEMUA profil browser utama (Default + Profile N)."""
+    emails, seen = [], set()
+    for pd in profile_dirs(base):
+        for e in emails_in_profile(pd):
+            if e not in seen:
+                seen.add(e)
+                emails.append(e)
+    return emails
+
+
+def main_account_emails():
+    """Email akun yang tercatat di avatar browser utama (account_info, semua profil)."""
+    return account_emails(get_main_root())
+
+
 def show_accounts(base, label):
-    p = base / "Default" / "Preferences"
-    if not p.exists():
-        print(f"  [{label}] Preferences tidak ada")
-        return
-    try:
-        d = json.loads(p.read_text(encoding="utf-8"))
-        ai = d.get("account_info", [])
-        emails = [a.get("email") for a in ai] if isinstance(ai, list) else []
-        print(f"  [{label}] akun di avatar: {emails if emails else '(kosong)'}")
-    except Exception as e:
-        print(f"  [{label}] gagal baca: {e}")
+    emails = account_emails(base)
+    if not any(pd.exists() for pd in profile_dirs(base)):
+        print(f"  [{label}] profil tidak ditemukan")
+    elif emails:
+        print(f"  [{label}] akun di avatar ({len(emails)}): {emails}")
+        for pd in profile_dirs(base):
+            pe = emails_in_profile(pd)
+            if pe:
+                print(f"  [{label}]  • {pd.name}: {pe}")
+    else:
+        print(f"  [{label}] (kosong — tidak ada akun tercatat di profil mana pun)")
 
 
 def cmd_prepare():

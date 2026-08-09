@@ -177,7 +177,7 @@ async def login_in_tab(context, email, password, label, results, page=None):
 
         # ---- LANGKAH 2: PASSWORD (bisa muncul 1x atau 2x bila ada captcha) ----
         password_done = False
-        for round_no in range(1, 4):
+        for round_no in range(1, 5):
             await page.wait_for_timeout(1500)
             url = page.url
 
@@ -212,12 +212,29 @@ async def login_in_tab(context, email, password, label, results, page=None):
                 print(f"[{label}] Klik Next (password).")
                 continue
 
+            # Belum ada field password:
+            # 1) Masih di halaman email (identifier) — klik Next ulang
+            email_el = page.locator(EMAIL_INPUT)
+            email_visible = await email_el.count() > 0 and await email_el.is_visible()
+            if "signin/v2/identifier" in url or email_visible:
+                print(f"[{label}] Masih di halaman email — klik Next ulang.")
+                await page.click(EMAIL_NEXT)
+                await page.wait_for_timeout(1000)
+                continue
+
+            # 2) Halaman pindah tapi form belum termuat — tunggu field muncul
+            try:
+                await page.locator(PASS_INPUT).first.wait_for(state="visible", timeout=8000)
+                continue
+            except Exception:
+                pass
+
             # Halaman lain tanpa password — berhenti aman (kemungkinan consent/captcha)
             print(f"[{label}] Tidak ada field password. URL: {url}")
             results[label] = "stop-unknown"
             return page
 
-        results[label] = "selesai-otomatis"
+        results[label] = "selesai-otomatis" if password_done else "stop-unknown"
         return page
 
     except Exception as e:
@@ -267,9 +284,10 @@ async def main():
             executable_path=CHROME_PATH,
             headless=False,
             timeout=30000,
-            viewport={"width": 1366, "height": 860},
+            viewport=None,
             args=[
                 "--profile-directory=Default",
+                "--start-maximized",
                 "--disable-blink-features=AutomationControlled",
                 "--no-first-run",
                 "--no-default-browser-check",
