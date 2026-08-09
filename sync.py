@@ -25,6 +25,19 @@ SYNC_RELS = [
     "Default/Login Data-journal",
 ]
 
+# File sesi untuk profil non-Default (Profile 1..N) saat prepare --profile.
+PROFILE_SESSION_RELS = [
+    "Preferences",
+    "Secure Preferences",
+    "Network/Cookies",
+    "Network/Cookies-journal",
+    "Local Storage/leveldb",
+    "Web Data",
+    "Web Data-journal",
+    "Login Data",
+    "Login Data-journal",
+]
+
 
 def get_main_root():
     """Lokasi User Data Chrome utama — dibaca dari config.json (bisa diubah di menu 4)."""
@@ -126,16 +139,21 @@ def profile_dirs(base):
 
 
 def emails_in_profile(pd):
-    p = pd / "Preferences"
-    if not p.exists():
-        return []
-    try:
-        d = json.loads(p.read_text(encoding="utf-8"))
-        ai = d.get("account_info", [])
-        return [a.get("email") for a in ai
-                if isinstance(ai, list) and isinstance(a, dict) and a.get("email")]
-    except Exception:
-        return []
+    """Email akun di avatar sebuah profil. Fallback ke Secure Preferences
+    karena Chrome kadang baru menulis account_info ke file itu (terutama
+    setelah akun dipindah antar-profil)."""
+    for fname in ("Preferences", "Secure Preferences"):
+        p = pd / fname
+        if not p.exists():
+            continue
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+            ai = d.get("account_info", [])
+            return [a.get("email") for a in ai
+                    if isinstance(ai, list) and isinstance(a, dict) and a.get("email")]
+        except Exception:
+            continue
+    return []
 
 
 def account_emails(base):
@@ -168,18 +186,58 @@ def show_accounts(base, label):
         print(f"  [{label}] (kosong — tidak ada akun tercatat di profil mana pun)")
 
 
+def cmd_list():
+    """Tampilkan semua profil browser utama + akun yang sudah login di tiap profil."""
+    print("=== DAFTAR PROFIL CHROME (UTAMA) ===")
+    print("Lokasi:", get_main_root())
+    base = get_main_root()
+    if not base.exists():
+        print("  (folder browser utama tidak ditemukan)")
+        return
+    found = False
+    for pd in profile_dirs(base):
+        if not pd.exists():
+            continue
+        found = True
+        pe = emails_in_profile(pd)
+        if pe:
+            print(f"  [{pd.name}] ({len(pe)} akun)")
+            for e in pe:
+                print(f"      - {e}")
+        else:
+            print(f"  [{pd.name}] (kosong — tidak ada akun login)")
+    if not found:
+        print("  (tidak ada profil ditemukan)")
+
+
 def cmd_prepare():
-    """Snapshot profil UTAMA -> KUSTOM. Jalankan SEBELUM login akun baru."""
+    """Snapshot profil UTAMA (profile terpilih, default Default) -> KUSTOM.
+    Jalankan SEBELUM login akun baru / connect ke 9Router."""
     die_if_chrome_open()
+
+    profile = "Default"
+    args = sys.argv[2:]
+    for i, a in enumerate(args):
+        if a == "--profile" and i + 1 < len(args):
+            profile = args[i + 1].strip()
+
     main_root = get_main_root()
     print("=== PREPARE: salin profil utama -> profil kustom ===")
     print("Lokasi browser utama:", main_root)
+    print("Profil yang disalin:", profile)
     if not (main_root / "Default").exists():
         print("Profil utama tidak ditemukan:", main_root)
         print("Cek lokasi di menu Pengaturan (menu 4).")
         sys.exit(1)
+    if profile != "Default" and not (main_root / profile).exists():
+        print(f"Profil '{profile}' tidak ditemukan di:", main_root)
+        sys.exit(1)
     for rel in SYNC_RELS:
         copy_item(main_root / rel.replace("/", "\\"), CUSTOM_ROOT / rel.replace("/", "\\"))
+    if profile != "Default":
+        for rel in PROFILE_SESSION_RELS:
+            copy_item(main_root / profile / rel.replace("/", "\\"),
+                      CUSTOM_ROOT / profile / rel.replace("/", "\\"))
     print("\nSelesai. Profil kustom kini = snapshot utama terbaru.")
     print("Lanjutkan: jalankan script login di profil kustom, lalu 'push'.")
     show_accounts(CUSTOM_ROOT, "kustom")
@@ -212,4 +270,4 @@ def cmd_status():
 
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
-    {"prepare": cmd_prepare, "push": cmd_push, "status": cmd_status}.get(cmd, cmd_status)()
+    {"prepare": cmd_prepare, "push": cmd_push, "status": cmd_status, "list": cmd_list}.get(cmd, cmd_status)()

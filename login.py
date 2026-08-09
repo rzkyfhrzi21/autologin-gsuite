@@ -42,6 +42,9 @@ BROWSER_LABEL = {"chrome": "Chrome", "brave": "Brave", "edge": "Edge"}
 EMAIL_INPUT = "#identifierId"
 EMAIL_NEXT = "#identifierNext"
 PASS_INPUT = 'input[name="Passwd"]'
+# Fallback lebar: halaman Welcome kadang merender input password sebagai
+# input[type=text] (kasus captcha) atau type=password (kasus normal).
+PASS_ANY = 'input[name="Passwd"], input[type="password"]'
 PASS_NEXT = "#passwordNext"
 CAPTCHA_INPUT = "#ca"
 CAPTCHA_IMG = "#captchaimg"
@@ -128,6 +131,18 @@ async def type_human(page, locator, value):
     await page.wait_for_timeout(250)
 
 
+async def set_page_zoom(page, scale=0.9):
+    """Konten halaman di-zoom out sedikit (90%) via CDP scale.
+
+    Mencegah tombol (mis. Next di kanan bawah) tertutup tepi window pada
+    laptop dengan scaling Windows > 100% — user tidak perlu zoom manual."""
+    try:
+        cdp = await page.context.new_cdp_session(page)
+        await cdp.send("Emulation.setPageScaleFactor", {"pageScaleFactor": scale})
+    except Exception:
+        pass
+
+
 async def is_captcha_page(page):
     """Halaman ber-captcha AKTIF: elemen captcha benar-benar VISIBLE.
     Catatan: #captchaimg dan #ca selalu ada di DOM Google walau tersembunyi,
@@ -146,7 +161,7 @@ async def is_captcha_page(page):
 
 async def has_password_field(page):
     try:
-        return await page.locator(PASS_INPUT).count() > 0
+        return await page.locator(PASS_ANY).count() > 0
     except Exception:
         return False
 
@@ -155,6 +170,7 @@ async def login_in_tab(context, email, password, label, results, page=None):
     # Reuse the initial blank tab so it does not remain unused.
     page = page or await context.new_page()
     await page.add_init_script(STEALTH_INIT_SCRIPT)
+    await set_page_zoom(page)
 
     try:
         print(f"[{label}] Buka halaman tambah akun (tab baru)...", flush=True)
@@ -191,7 +207,7 @@ async def login_in_tab(context, email, password, label, results, page=None):
 
             # Halaman password (Welcome / Welcome captcha)
             if await has_password_field(page):
-                pwd = page.locator(PASS_INPUT).first
+                pwd = page.locator(PASS_ANY).first
                 await pwd.wait_for(state="visible", timeout=15000)
                 await type_human(page, pwd, password)
                 print(f"[{label}] Password diisi (putaran {round_no}).")
@@ -224,7 +240,7 @@ async def login_in_tab(context, email, password, label, results, page=None):
 
             # 2) Halaman pindah tapi form belum termuat — tunggu field muncul
             try:
-                await page.locator(PASS_INPUT).first.wait_for(state="visible", timeout=8000)
+                await page.locator(PASS_ANY).first.wait_for(state="visible", timeout=8000)
                 continue
             except Exception:
                 pass

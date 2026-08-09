@@ -133,23 +133,28 @@ def profile_dirs(base):
 
 
 def main_account_emails():
-    """Email akun di avatar browser utama (account_info, semua profil)."""
+    """Email akun di avatar browser utama (account_info, semua profil).
+
+    Fallback ke Secure Preferences: Chrome kadang baru menulis account_info
+    ke file itu (mis. setelah akun pindah antar-profil)."""
     base = main_path()
     emails, seen = [], set()
     for pd in profile_dirs(base):
-        p = pd / "Preferences"
-        if not p.exists():
-            continue
-        try:
-            d = json.loads(p.read_text(encoding="utf-8"))
-            ai = d.get("account_info", [])
-            for a in ai if isinstance(ai, list) else []:
-                e = a.get("email") if isinstance(a, dict) else None
-                if e and e not in seen:
-                    seen.add(e)
-                    emails.append(e)
-        except Exception:
-            continue
+        for fname in ("Preferences", "Secure Preferences"):
+            p = pd / fname
+            if not p.exists():
+                continue
+            try:
+                d = json.loads(p.read_text(encoding="utf-8"))
+                ai = d.get("account_info", [])
+                for a in ai if isinstance(ai, list) else []:
+                    e = a.get("email") if isinstance(a, dict) else None
+                    if e and e not in seen:
+                        seen.add(e)
+                        emails.append(e)
+                break
+            except Exception:
+                continue
     return emails
 
 
@@ -188,7 +193,8 @@ def show_main_menu():
     menu_row("[1] Install semua yang diperlukan", GREEN)
     menu_row("[2] Otomasi tambah akun", GREEN)
     menu_row("[3] Bersihkan penyimpanan", YELLOW)
-    menu_row("[4] Pengaturan (lokasi browser utama)", CYAN)
+    menu_row("[4] Connect X.com (Grok) ke 9Router", GREEN)
+    menu_row("[5] Pengaturan (lokasi browser utama)", CYAN)
     menu_row("[0] Keluar", RED)
     print(f"╚{'═' * (W - 2)}╝")
     print()
@@ -333,6 +339,135 @@ def pilih_browser_otomatis(cfg):
     print(f"{DIM}  Path: {default_path}{RESET}")
 
 
+def profile_emails(base, name):
+    """Email akun login di satu profil (dari account_info Preferences / Secure Preferences)."""
+    for fname in ("Preferences", "Secure Preferences"):
+        p = Path(base) / name / fname
+        if not p.exists():
+            continue
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+            ai = d.get("account_info", [])
+            return [a.get("email") for a in ai
+                    if isinstance(ai, list) and isinstance(a, dict) and a.get("email")]
+        except Exception:
+            continue
+    return []
+
+
+def cmd_connect9router():
+    print()
+    print(f"{BOLD}=== [4] CONNECT X.COM (GROK) KE 9ROUTER ==={RESET}")
+    print()
+    cfg = load_config()
+    if not cfg.get("router9_url"):
+        print(f"{RED}  ❌ 9Router belum dikonfigurasi.{RESET}")
+        print()
+        print(f"{YELLOW}  Buka config.json lalu isi:{RESET}")
+        print(f"      \"router9_url\" : \"http://localhost:20128/\"")
+        print(f"      \"router9_pass\": \"<password 9router, kosongkan bila tanpa password>\"")
+        print()
+        ask("  Tekan Enter untuk kembali...")
+        return
+    if chrome_running():
+        print(f"{RED}  ❌ Browser utama masih berjalan. Tutup dulu, lalu ulangi menu ini.{RESET}")
+        print(f"{YELLOW}  (Proses ini membuka profil kustom — snapshot profil utama — untuk memakai sesi GSuite.){RESET}")
+        ask("\n  Tekan Enter untuk kembali...")
+        return
+
+    # 1) Pilih profil Chrome utama + lihat akun yang sudah login di dalamnya
+    base = main_path()
+    prof_list = []
+    for pd in profile_dirs(base):
+        if not pd.exists():
+            continue
+        prof_list.append(pd)
+    if not prof_list:
+        print(f"{RED}  ❌ Tidak ada profil Chrome ditemukan di:{RESET}")
+        print(f"     {base}")
+        ask("\n  Tekan Enter untuk kembali...")
+        return
+
+    print(f"{CYAN}  PROFIL CHROME (UTAMA) + AKUN YANG SUDAH LOGIN:{RESET}")
+    for i, pd in enumerate(prof_list, 1):
+        pe = profile_emails(base, pd.name)
+        if pe:
+            print(f"     {GREEN}[{i}]{RESET} {pd.name} — {len(pe)} akun")
+            for e in pe:
+                print(f"          - {e}")
+        else:
+            print(f"     {GREEN}[{i}]{RESET} {pd.name} — (tidak ada akun login tercatat)")
+    print()
+    ch = ask("  Pilih profil yang akan dipakai [1-%d] / kosong batal: " % len(prof_list))
+    if ch is None or not ch:
+        print(f"{YELLOW}  Dibatalkan.{RESET}")
+        return
+    if not ch.isdigit() or not (1 <= int(ch) <= len(prof_list)):
+        print(f"{RED}  Pilihan tidak valid.{RESET}")
+        return
+    profile = prof_list[int(ch) - 1].name
+    prof_emails = profile_emails(base, profile)
+
+    # 2) Pilih akun dari profil itu (atau ketik manual / semua)
+    email_arg = None
+    if prof_emails:
+        print()
+        print(f"{CYAN}  AKUN LOGIN DI '{profile}':{RESET}")
+        for i, e in enumerate(prof_emails, 1):
+            print(f"     {GREEN}[{i}]{RESET} {e}")
+        print(f"     {GREEN}[a]{RESET} Semua akun di profil ini")
+        print(f"     {GREEN}[m]{RESET} Ketik email lain (pakai sesi Google/akungsuite)")
+        print()
+        ch = ask("  Pilih akun [1-%d]/a/m, kosong batal: " % len(prof_emails))
+        if ch is None or not ch:
+            print(f"{YELLOW}  Dibatalkan.{RESET}")
+            return
+        if ch.strip().lower() == "a":
+            email_arg = None
+        elif ch.strip().lower() == "m":
+            em = ask("  Email target: ")
+            if not em or not em.strip():
+                print(f"{YELLOW}  Dibatalkan.{RESET}")
+                return
+            email_arg = em.strip()
+        elif ch.isdigit() and (1 <= int(ch) <= len(prof_emails)):
+            email_arg = prof_emails[int(ch) - 1]
+        else:
+            print(f"{RED}  Pilihan tidak valid.{RESET}")
+            return
+    else:
+        em = ask(f"  Profil '{profile}' tanpa akun tercatat — ketik email target (pakai akungsuite.txt): ")
+        if not em or not em.strip():
+            print(f"{YELLOW}  Dibatalkan.{RESET}")
+            return
+        email_arg = em.strip()
+
+    print()
+    print(f"{CYAN}  Alur per akun GSuite:{RESET}")
+    print(f"     1. Profil kustom disiapkan = snapshot profil '{profile}' (prepare otomatis)")
+    print(f"     2. Buka dashboard 9Router -> klik Add -> modal device code")
+    print(f"     3. Login accounts.x.ai via Google (sesi profile itu)")
+    print(f"     4. Otorisasi device (Continue -> Allow) -> akun muncul di Connections")
+    print(f"     5. Hasil dicatat di 9router_keys.txt")
+    print(f"{YELLOW}  Catatan: akun X harus sudah terdaftar dengan email GSuite tersebut.{RESET}")
+    if email_arg:
+        print(f"\n  Target: {BOLD}{email_arg}{RESET} — profil: {BOLD}{profile}{RESET}")
+    else:
+        print(f"\n  Target: {BOLD}SEMUA akun di profil {profile}{RESET}")
+    print()
+    ans = ask("  Mulai connect? [y/N]: ")
+    if ans is None or ans.strip().lower() != "y":
+        print(f"{YELLOW}  Dibatalkan.{RESET}")
+        return
+    print()
+    cmd = [sys.executable, "-u", "grok_router.py", "--profile", profile]
+    if email_arg:
+        cmd += ["--email", email_arg]
+    subprocess.run(cmd, cwd=BASE)
+    print()
+    ask("  Tekan Enter untuk kembali...")
+
+
 def cmd_pengaturan():
     while True:
         os.system("cls" if os.name == "nt" else "clear")
@@ -386,7 +521,7 @@ def cmd_pengaturan():
 def main():
     while True:
         show_main_menu()
-        choice = ask(f"  {BOLD}Pilih menu [0-4]: {RESET}")
+        choice = ask(f"  {BOLD}Pilih menu [0-5]: {RESET}")
         if choice is None:
             print(f"\n  {GREEN}Bye! 👋{RESET}")
             break
@@ -402,6 +537,8 @@ def main():
         elif choice == "3":
             cmd_bersihkan()
         elif choice == "4":
+            cmd_connect9router()
+        elif choice == "5":
             cmd_pengaturan()
         else:
             print(f"\n  {RED}Pilihan tidak valid.{RESET}")

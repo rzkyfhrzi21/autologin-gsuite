@@ -23,6 +23,7 @@ Cara kerja: login dilakukan di **profil Chrome terpisah** (profil kustom) karena
 | Backup otomatis | Setiap file yang akan diubah di-backup dulu (folder `.backup-sync-*`) |
 | Pengaman Chrome | Script menolak berjalan jika Chrome masih terbuka (mencegah file tertimpa dari memori) |
 | Mode tes | `python login.py --limit N` untuk mencoba hanya N akun pertama |
+| Connect X.com (Grok) ke 9Router | Login X.com via Google (sesi GSuite) → device flow 9router provider `grok-cli` (dashboard → Add → modal → Continue → Allow) → hasil di `9router_keys.txt` |
 
 ---
 
@@ -59,7 +60,17 @@ Tidak perlu `playwright install chromium` — script memakai browser Chromium ya
    - Enter kosong = batal, lokasi lama tetap dipakai
    - Path harus menunjuk ke folder **User Data** (bukan `chrome.exe` / `brave.exe`)
 
-3. **Isi daftar akun** di `akungsuite.txt` (format `email|password`, satu per baris):
+3. **Konfigurasi 9Router** (untuk menu `[4]`) di `config.json`:
+   ```json
+   {
+     "chrome_main_path": "C:\\Users\\rizky\\AppData\\Local\\Google\\Chrome\\User Data",
+     "router9_url": "http://localhost:20128/",
+     "router9_pass": "<password 9router kamu>"
+   }
+   ```
+   `router9_url` = URL instance 9router lokal, `router9_pass` = password dashboard (dipakai `POST /api/auth/login`).
+
+4. **Isi daftar akun** di `akungsuite.txt` (format `email|password`, satu per baris):
    ```
    # AKUN GSUITE UNTUK AUTO LOGIN
    # Format: email|password (satu akun per baris)
@@ -70,7 +81,7 @@ Tidak perlu `playwright install chromium` — script memakai browser Chromium ya
    ```
    Salin dari `akungsuite.example.txt` jika belum ada.
 
-4. **Buka Chrome sekali**, login manual akun utama kamu (misal akun pribadi), lalu **tutup Chrome** — profil utama harus dalam keadaan berisi akun yang sudah ada sebelum mulai.
+5. **Buka Chrome sekali**, login manual akun utama kamu (misal akun pribadi), lalu **tutup Chrome** — profil utama harus dalam keadaan berisi akun yang sudah ada sebelum mulai.
 
 ---
 
@@ -89,8 +100,26 @@ Menampilkan: nama project + credit, statistik akun (total / sudah sinkron / belu
 | `[1]` | **Install semua yang diperlukan** — cek Python & Chrome, install Playwright |
 | `[2]` | **Otomasi tambah akun** — siapkan profil → buka Chrome otomasi → isi captcha & setuju manual → **tutup window Chrome otomasi** → otomatis sinkron ke Chrome utama |
 | `[3]` | **Bersihkan penyimpanan** — hapus profil Chrome otomasi (pakai setelah semua akun sinkron) |
-| `[4]` | **Pengaturan** — ubah lokasi browser utama manual atau **deteksi otomatis** (pilih Chrome/Brave/Edge; kembali ke menu utama: `[9]`) |
+| `[4]` | **Connect X.com (Grok) ke 9Router** — login X.com via Google (sesi GSuite) → cookie sso → device flow 9router `grok-cli` → hasil di `9router_keys.txt` |
+| `[5]` | **Pengaturan** — ubah lokasi browser utama manual atau **deteksi otomatis** (pilih Chrome/Brave/Edge; kembali ke menu utama: `[9]`) |
 | `[0]` | **Keluar** |
+
+### Alur lengkap menu 4 — Connect X.com (Grok) ke 9Router
+
+> ⚠️ **BELUM SELESAI** — fitur ini masih dalam pengembangan dan belum lolos tes end-to-end
+> (Cloudflare memblokir accounts.x.ai di profil kustom otomasi; klik "Login with Google"
+> belum berhasil membuka popup OAuth). Jangan gunakan untuk produksi.
+
+1. Pastikan **9Router sudah terkonfigurasi** di `config.json` (`router9_url`, `router9_pass`) — password dashboard 9router kamu
+2. Pastikan semua window browser (termasuk browser utama) **tertutup**
+3. Pilih `[4]` → script membuka browser utama sendiri dan untuk **setiap akun GSuite** di `akungsuite.txt`:
+   - Login **X.com** via Google — akun GSuite dipilih otomatis dari sesi Google yang ada (email/password terisi otomatis jika perlu)
+   - Buka **grok.com** untuk membangun sesi X/Grok (klik `Continue with X` bila perlu)
+   - Kumpulkan cookie `sso` / `sso-rw` / `x-userid` → inject ke halaman otorisasi 9router
+   - Klik `Continue` → `Allow` → 9router di-poll sampai berhasil
+4. Hasil tiap akun dicatat di **`9router_keys.txt`** (format `email|status|tanggal`)
+
+> **Catatan:** akun X harus sudah terdaftar dengan email GSuite tersebut — email temp tidak bisa (pengalaman dari proyek sebelumnya). Jika ada captcha/verifikasi Google, selesaikan manual di tab yang terbuka.
 
 ### Alur lengkap menu 2 — Otomasi tambah akun
 
@@ -140,6 +169,18 @@ python login.py --limit 1
 ```
 *Hanya memproses 1 akun pertama di `akungsuite.txt`.*
 
+### Alur 4 — Connect X.com ke 9Router
+
+```cmd
+python grok_router.py
+```
+*Login X.com via Google untuk tiap akun GSuite, ambil cookie sso, lalu device flow 9router (provider `grok-cli`). Hasil dicatat di `9router_keys.txt`.*
+
+```cmd
+python grok_router.py --limit 1
+```
+*Hanya memproses 1 akun pertama (mode tes).*
+
 ---
 
 ## Troubleshooting
@@ -163,10 +204,12 @@ autologin-gsuite/
 ├── menu.py            # Menu CLI utama (python menu.py)
 ├── login.py           # Script login massal (profil kustom, multi-browser)
 ├── sync.py            # Pipeline: prepare / push / status (browser utama)
+├── grok_router.py     # Connect X.com (Grok) ke 9Router via sesi GSuite
 ├── akungsuite.txt     # Daftar akun (email|password) — TIDAK ikut GitHub
 ├── akungsuite.example.txt  # Template daftar akun (aman di-push)
-├── config.json        # Konfigurasi lokal: lokasi browser utama — TIDAK ikut GitHub
+├── config.json        # Konfigurasi lokal: lokasi browser + 9Router — TIDAK ikut GitHub
 ├── config.example.json      # Template konfigurasi (aman di-push)
+├── 9router_keys.txt   # Hasil connect X.com ke 9Router — TIDAK ikut GitHub
 ├── profiles/utama/    # Profil browser kustom (dibuat otomatis saat menu 2)
 └── contoh/            # Referensi HTML halaman Google (untuk pengembangan)
 ```

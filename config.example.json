@@ -1,3 +1,5 @@
 {
-  "chrome_main_path": "C:\\Users\\<username>\\AppData\\Local\\Google\\Chrome\\User Data"
+  "chrome_main_path": "C:\\Users\\<username>\\AppData\\Local\\Google\\Chrome\\User Data",
+  "router9_url": "http://localhost:20128/",
+  "router9_pass": "<password 9router>"
 }
