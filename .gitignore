@@ -2,6 +2,9 @@
 # Daftar akun berisi password asli — gunakan akungsuite.example.txt sebagai template
 akungsuite.txt
 
+# Konfigurasi lokal (path Chrome utama per perangkat) — gunakan config.example.json sebagai template
+config.json
+
 # Profil Chrome kustom: 1,8 GB data sesi/cookies/login — bisa dibuat ulang via `python sync.py prepare`
 profiles/
 

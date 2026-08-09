@@ -8,7 +8,7 @@ from pathlib import Path
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 CUSTOM_ROOT = Path(__file__).parent / "profiles" / "utama"
-MAIN_ROOT = Path(r"C:\Users\rizky\AppData\Local\Google\Chrome\User Data")
+CONFIG_FILE = Path(__file__).parent / "config.json"
 
 # Semua file penentu sesi/akun Google, relatif terhadap root user-data.
 SYNC_RELS = [
@@ -23,6 +23,28 @@ SYNC_RELS = [
     "Default/Login Data",
     "Default/Login Data-journal",
 ]
+
+
+def get_main_root():
+    """Lokasi User Data Chrome utama — dibaca dari config.json (bisa diubah di menu 4)."""
+    if CONFIG_FILE.exists():
+        try:
+            cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+            p = Path(cfg.get("chrome_main_path", ""))
+            if p and p.exists():
+                return p
+        except Exception:
+            pass
+    # Default: C:\Users\<user>\AppData\Local\Google\Chrome\User Data
+    default = Path.home() / "AppData" / "Local" / "Google" / "Chrome" / "User Data"
+    if CONFIG_FILE.exists():
+        try:
+            cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            cfg = {}
+        cfg["chrome_main_path"] = str(default)
+        CONFIG_FILE.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    return default
 
 
 def chrome_running():
@@ -66,6 +88,19 @@ def copy_item(src, dst):
     print(f"  ✓ disalin: {src.name}")
 
 
+def main_account_emails():
+    """Email akun yang tercatat di avatar Chrome utama (account_info)."""
+    p = get_main_root() / "Default" / "Preferences"
+    if not p.exists():
+        return []
+    try:
+        d = json.loads(p.read_text(encoding="utf-8"))
+        ai = d.get("account_info", [])
+        return [a.get("email") for a in ai if isinstance(a, dict) and a.get("email")]
+    except Exception:
+        return []
+
+
 def show_accounts(base, label):
     p = base / "Default" / "Preferences"
     if not p.exists():
@@ -83,12 +118,15 @@ def show_accounts(base, label):
 def cmd_prepare():
     """Snapshot profil UTAMA -> KUSTOM. Jalankan SEBELUM login akun baru."""
     die_if_chrome_open()
+    main_root = get_main_root()
     print("=== PREPARE: salin profil utama -> profil kustom ===")
-    if not (MAIN_ROOT / "Default").exists():
-        print("Profil utama tidak ditemukan:", MAIN_ROOT)
+    print("Lokasi Chrome utama:", main_root)
+    if not (main_root / "Default").exists():
+        print("Profil utama tidak ditemukan:", main_root)
+        print("Cek lokasi di menu Pengaturan (menu 4).")
         sys.exit(1)
     for rel in SYNC_RELS:
-        copy_item(MAIN_ROOT / rel.replace("/", "\\"), CUSTOM_ROOT / rel.replace("/", "\\"))
+        copy_item(main_root / rel.replace("/", "\\"), CUSTOM_ROOT / rel.replace("/", "\\"))
     print("\nSelesai. Profil kustom kini = snapshot utama terbaru.")
     print("Lanjutkan: jalankan script login di profil kustom, lalu 'push'.")
     show_accounts(CUSTOM_ROOT, "kustom")
@@ -97,20 +135,24 @@ def cmd_prepare():
 def cmd_push():
     """Kirim hasil login dari profil KUSTOM -> UTAMA. Jalankan SETELAH login."""
     die_if_chrome_open()
+    main_root = get_main_root()
     print("=== PUSH: salin profil kustom -> profil utama ===")
+    print("Lokasi Chrome utama:", main_root)
     if not (CUSTOM_ROOT / "Default").exists():
         print("Profil kustom tidak ditemukan:", CUSTOM_ROOT)
+        print("Jalankan 'prepare' dulu (menu 2 / sync.py prepare).")
         sys.exit(1)
     for rel in SYNC_RELS:
-        copy_item(CUSTOM_ROOT / rel.replace("/", "\\"), MAIN_ROOT / rel.replace("/", "\\"))
+        copy_item(CUSTOM_ROOT / rel.replace("/", "\\"), main_root / rel.replace("/", "\\"))
     print("\nSelesai. Akun dari profil kustom dipindah ke utama.")
     print("Buka Chrome utama — akun lama tetap ada, akun baru bertambah.")
-    show_accounts(MAIN_ROOT, "utama")
+    show_accounts(main_root, "utama")
 
 
 def cmd_status():
     print("=== STATUS ===")
-    show_accounts(MAIN_ROOT, "utama")
+    print("Lokasi Chrome utama:", get_main_root())
+    show_accounts(get_main_root(), "utama")
     show_accounts(CUSTOM_ROOT, "kustom")
     print(f"Chrome berjalan: {chrome_running()}")
 
