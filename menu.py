@@ -64,13 +64,25 @@ def main_path():
     return Path.home() / "AppData" / "Local" / "Google" / "Chrome" / "User Data"
 
 
+def browser_proc_name():
+    """Nama process browser utama sesuai config.json (default: chrome.exe)."""
+    cfg = load_config()
+    low = (cfg.get("chrome_main_path") or "").lower()
+    if "brave-browser" in low:
+        return "brave.exe"
+    if "edge" in low:
+        return "msedge.exe"
+    return "chrome.exe"
+
+
 def chrome_running():
+    proc = browser_proc_name()
     try:
         out = subprocess.run(
-            ["tasklist", "/FI", "IMAGENAME eq chrome.exe", "/NH"],
+            ["tasklist", "/FI", f"IMAGENAME eq {proc}", "/NH"],
             capture_output=True, text=True, timeout=10,
         )
-        return "chrome.exe" in out.stdout
+        return proc in out.stdout
     except Exception:
         return False
 
@@ -134,11 +146,21 @@ def show_main_menu():
     print(f"║  {BOLD}{GREEN}[1]{RESET} Install semua yang diperlukan{' ' * (W - 34)}║")
     print(f"║  {BOLD}{GREEN}[2]{RESET} Otomasi tambah akun{' ' * (W - 30)}║")
     print(f"║  {BOLD}{YELLOW}[3]{RESET} Bersihkan penyimpanan{' ' * (W - 31)}║")
-    print(f"║  {BOLD}{CYAN}[4]{RESET} Pengaturan (lokasi Chrome utama){' ' * (W - 42)}║")
+    print(f"║  {BOLD}{CYAN}[4]{RESET} Pengaturan (lokasi browser utama){' ' * (W - 42)}║")
     print(f"║  {BOLD}{RED}[0]{RESET} Keluar{' ' * (W - 16)}║")
     print(f"╚{'═' * (W - 2)}╝")
     print()
     return total, done, pending
+
+
+EXE_CANDIDATES = [
+    ("Chrome", r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+    ("Chrome", r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
+    ("Brave", r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"),
+    ("Brave", r"C:\Program Files (x86)\BraveSoftware\Brave-Browser\Application\brave.exe"),
+    ("Edge", r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
+    ("Edge", r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"),
+]
 
 
 def cmd_install():
@@ -146,9 +168,11 @@ def cmd_install():
     print(f"{BOLD}=== [1] INSTALL SEMUA YANG DIPERLUKAN ==={RESET}")
     print()
     print("  • Python:", sys.version.split()[0])
-    print("  • Chrome:", "✅ ditemukan" if (Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe").exists()
-                                            or Path(r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe").exists())
-          else "❌ tidak ditemukan — pastikan Chrome terinstall")
+    detected = sorted({name for name, p in EXE_CANDIDATES if Path(p).exists()})
+    if detected:
+        print("  • Browser:", " / ".join(detected))
+    else:
+        print("  • Browser: ❌ Chrome/Brave/Edge tidak ditemukan — install salah satunya")
     print()
     print(f"{CYAN}  Menginstall Playwright (Python)...{RESET}")
     r = subprocess.run([sys.executable, "-m", "pip", "install", "playwright"],
@@ -164,7 +188,7 @@ def cmd_otomasi():
     print()
     print(f"{BOLD}=== [2] OTOMASI TAMBAH AKUN ==={RESET}")
     print()
-    print(f"{YELLOW}  ⚠️  Pastikan SEMUA window Chrome (termasuk Chrome utama) ditutup.{RESET}")
+    print(f"{YELLOW}  ⚠️  Pastikan SEMUA window browser (termasuk browser utama) ditutup.{RESET}")
     if chrome_running():
         print(f"{RED}  ❌ Chrome masih berjalan. Tutup dulu, lalu ulangi menu ini.{RESET}")
         input("\n  Tekan Enter untuk kembali...")
@@ -182,15 +206,15 @@ def cmd_otomasi():
         return
 
     print()
-    print(f"{BOLD}{CYAN}  [2/3] Chrome otomasi akan terbuka...{RESET}")
+    print(f"{BOLD}{CYAN}  [2/3] Browser otomasi akan terbuka...{RESET}")
     print(f"{YELLOW}  → Isi captcha & klik setuju di setiap tab{RESET}")
-    print(f"{YELLOW}  → Setelah SEMUA akun berhasil login, {BOLD}TUTUP WINDOW CHROME OTOMASI{RESET}")
-    print(f"{YELLOW}  → Akun akan {BOLD}otomatis tersimpan ke Chrome utama{RESET}")
+    print(f"{YELLOW}  → Setelah SEMUA akun berhasil login, {BOLD}TUTUP WINDOW BROWSER OTOMASI{RESET}")
+    print(f"{YELLOW}  → Akun akan {BOLD}otomatis tersimpan ke browser utama{RESET}")
     print()
     subprocess.run([sys.executable, "-u", "login.py"], cwd=BASE)
 
     print()
-    print(f"{CYAN}  [3/3] Menyinkronkan ke Chrome utama (push)...{RESET}")
+    print(f"{CYAN}  [3/3] Menyinkronkan ke browser utama (push)...{RESET}")
     r = subprocess.run([sys.executable, "-u", "sync.py", "push"], cwd=BASE)
     if r.returncode != 0:
         print(f"{RED}  ❌ Push gagal. Tekan Enter untuk kembali...{RESET}")
@@ -198,8 +222,8 @@ def cmd_otomasi():
         return
 
     print()
-    print(f"{GREEN}  ✅ Selesai! Semua akun sudah tersimpan ke Chrome utama.{RESET}")
-    print(f"{GREEN}  Buka Chrome utama untuk memeriksa daftar akun.{RESET}")
+    print(f"{GREEN}  ✅ Selesai! Semua akun sudah tersimpan ke browser utama.{RESET}")
+    print(f"{GREEN}  Buka browser utama untuk memeriksa daftar akun.{RESET}")
     input("\n  Tekan Enter untuk kembali...")
 
 
@@ -230,11 +254,11 @@ def cmd_pengaturan():
         cfg = load_config()
         p = main_path()
         box(f"{BOLD}{CYAN}⚙️  PENGATURAN{RESET}", [
-            ("🖥️  Lokasi Chrome utama", str(p)),
+            ("🖥️  Lokasi browser utama", str(p)),
             ("✅ Path valid", "Ya" if p.exists() else "Tidak — periksa path"),
         ])
         print("╔" + "═" * (W - 2) + "╗")
-        print(f"║  {BOLD}{GREEN}[1]{RESET} Ubah lokasi Chrome utama{' ' * (W - 32)}║")
+        print(f"║  {BOLD}{GREEN}[1]{RESET} Ubah lokasi browser utama{' ' * (W - 30)}║")
         print(f"║  {BOLD}{RED}[9]{RESET} Kembali ke menu utama{' ' * (W - 30)}║")
         print(f"╚{'═' * (W - 2)}╝")
         print()
@@ -242,7 +266,7 @@ def cmd_pengaturan():
         if choice == "1":
             print()
             while True:
-                new_path = input("  Masukkan path User Data Chrome utama\n"
+                new_path = input("  Masukkan path User Data browser utama\n"
                                  "  (kosong untuk batal): ").strip().strip('"')
                 if not new_path:
                     print(f"{YELLOW}  ❌ Tidak diubah — kembali ke menu pengaturan.{RESET}")
@@ -253,12 +277,12 @@ def cmd_pengaturan():
                 if p.exists() and (local_state.exists() or prefs.exists()):
                     cfg["chrome_main_path"] = str(p)
                     save_config(cfg)
-                    print(f"{GREEN}  ✅ Path valid — Lokasi Chrome utama diperbarui.{RESET}")
+                    print(f"{GREEN}  ✅ Path valid — Lokasi browser utama diperbarui.{RESET}")
                     break
                 print(f"{RED}  ❌ Path tidak valid — 'Local State' / 'Default\\Preferences' "
                       f"tidak ditemukan di folder itu.{RESET}")
                 print(f"{YELLOW}  Pastikan path menunjuk ke folder {BOLD}User Data{RESET} "
-                      f"Chrome, bukan ke chrome.exe.{RESET}")
+                      f"(Chrome/Brave/Edge), bukan ke chrome.exe/brave.exe.{RESET}")
                 print()
             input("  Tekan Enter untuk lanjut...")
         elif choice == "9":

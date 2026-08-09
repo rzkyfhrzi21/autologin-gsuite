@@ -1,4 +1,5 @@
 import asyncio
+import json
 import subprocess
 import sys
 import time
@@ -9,11 +10,30 @@ from playwright.async_api import async_playwright
 # Cegah crash UnicodeEncodeError di CMD Windows (emoji tidak dikenali cp1252)
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-CHROME_PATH = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+CONFIG_FILE = Path(__file__).parent / "config.json"
 # Chrome 151 menolak remote debugging pada direktori User Data bawaan.
 # Profil Default telah disalin sekali ke profiles/utama (kustom), otomasi jalan di situ.
 CHROME_USER_DATA = Path(__file__).parent / "profiles" / "utama"
 ACCOUNTS_FILE = Path(__file__).parent / "akungsuite.txt"
+
+# Browser Chromium yang didukung. Executable dideteksi otomatis:
+# prioritas ikut lokasi User Data di config.json (menu 4), fallback ke urutan ini.
+BROWSER_EXES = {
+    "chrome": [
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+    ],
+    "brave": [
+        r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
+        r"C:\Program Files (x86)\BraveSoftware\Brave-Browser\Application\brave.exe",
+    ],
+    "edge": [
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+    ],
+}
+BROWSER_PROC = {"chrome": "chrome.exe", "brave": "brave.exe", "edge": "msedge.exe"}
+BROWSER_LABEL = {"chrome": "Chrome", "brave": "Brave", "edge": "Edge"}
 
 # Selector berdasarkan referensi halaman Google asli:
 #   Sign in - Google Accounts.html  : #identifierId -> #identifierNext
@@ -57,13 +77,44 @@ def load_accounts():
     return accounts
 
 
+def detect_browser():
+    """Pilih browser Chromium (Chrome/Brave/Edge) dari config.json + executable yang ada."""
+    pick = None
+    try:
+        cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+        low = (cfg.get("chrome_main_path") or "").lower()
+        if "brave-browser" in low:
+            pick = "brave"
+        elif "edge" in low:
+            pick = "edge"
+        elif "chrome" in low:
+            pick = "chrome"
+    except Exception:
+        pass
+    order = ["chrome", "brave", "edge"]
+    if pick in order:
+        order = [pick] + [b for b in order if b != pick]
+    for b in order:
+        for exe in BROWSER_EXES[b]:
+            if Path(exe).exists():
+                return b, exe
+    print("❌ Tidak ada browser Chromium ditemukan (Chrome/Brave/Edge).")
+    print("   Install salah satunya, lalu jalankan ulang.")
+    sys.exit(1)
+
+
+BROWSER, CHROME_PATH = detect_browser()
+BROWSER_NAME = BROWSER_LABEL[BROWSER]
+BROWSER_PROC_NAME = BROWSER_PROC[BROWSER]
+
+
 def chrome_running():
     try:
         out = subprocess.run(
-            ["tasklist", "/FI", "IMAGENAME eq chrome.exe", "/NH"],
+            ["tasklist", "/FI", f"IMAGENAME eq {BROWSER_PROC_NAME}", "/NH"],
             capture_output=True, text=True, timeout=10,
         )
-        return "chrome.exe" in out.stdout
+        return BROWSER_PROC_NAME in out.stdout
     except Exception:
         return False
 
@@ -198,8 +249,8 @@ async def main():
         return
 
     if chrome_running():
-        print("⚠️ Chrome sedang berjalan — tutup SEMUA window Chrome dulu,")
-        print("   lalu jalankan ulang. (Profil terkunci saat Chrome terbuka)")
+        print(f"⚠️ {BROWSER_NAME} sedang berjalan — tutup SEMUA window {BROWSER_NAME} dulu,")
+        print("   lalu jalankan ulang. (Profil terkunci saat browser terbuka)")
         return
 
     print(f"=== TAMBAH {len(accounts)} AKUN KE PROFIL DEFAULT (1 tab per akun) ===")
@@ -210,7 +261,7 @@ async def main():
     print("[START] Memulai Playwright...", flush=True)
     playwright = await async_playwright().start()
     try:
-        print("[START] Membuka Chrome dengan profil Default...", flush=True)
+        print(f"[START] Membuka {BROWSER_NAME} dengan profil Default...", flush=True)
         context = await playwright.chromium.launch_persistent_context(
             user_data_dir=CHROME_USER_DATA,
             executable_path=CHROME_PATH,
@@ -224,7 +275,7 @@ async def main():
                 "--no-default-browser-check",
             ],
         )
-        print(f"[START] Chrome terbuka, tab awal: {len(context.pages)}", flush=True)
+        print(f"[START] {BROWSER_NAME} terbuka, tab awal: {len(context.pages)}", flush=True)
     except Exception as e:
         print(f"Gagal buka profil Default: {e}")
         return
@@ -247,7 +298,7 @@ async def main():
         print("\nSemua tab sengaja dibiarkan terbuka. Isi captcha & klik setuju manual per tab.")
 
         # Tunggu sampai user menutup browser (sesi tetap tersimpan di profil Default)
-        print("\nMenunggu... tutup window Chrome bila sudah selesai.")
+        print(f"\nMenunggu... tutup window {BROWSER_NAME} bila sudah selesai.")
         while len(context.pages) > 0:
             await asyncio.sleep(5)
     except Exception as e:

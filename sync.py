@@ -47,22 +47,47 @@ def get_main_root():
     return default
 
 
+BROWSER_PROC = {"chrome": "chrome.exe", "brave": "brave.exe", "edge": "msedge.exe"}
+BROWSER_LABEL = {"chrome": "Chrome", "brave": "Brave", "edge": "Edge"}
+
+
+def main_browser_name():
+    """Nama browser utama sesuai lokasi User Data di config.json (default: Chrome)."""
+    if CONFIG_FILE.exists():
+        try:
+            cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+            low = (cfg.get("chrome_main_path") or "").lower()
+            if "brave-browser" in low:
+                return "brave"
+            if "edge" in low:
+                return "edge"
+        except Exception:
+            pass
+    return "chrome"
+
+
+def browser_label():
+    return BROWSER_LABEL[main_browser_name()]
+
+
 def chrome_running():
+    proc = BROWSER_PROC[main_browser_name()]
     try:
         out = subprocess.run(
-            ["tasklist", "/FI", "IMAGENAME eq chrome.exe", "/NH"],
+            ["tasklist", "/FI", f"IMAGENAME eq {proc}", "/NH"],
             capture_output=True, text=True, timeout=10,
         )
-        return "chrome.exe" in out.stdout
+        return proc in out.stdout
     except Exception:
         return False
 
 
 def die_if_chrome_open():
+    b = browser_label()
     if chrome_running():
-        print("⛔ Chrome SEDANG BERJALAN. Tutup SEMUA window Chrome dulu,")
+        print(f"⛔ {b} SEDANG BERJALAN. Tutup SEMUA window {b} dulu,")
         print("   lalu jalankan ulang perintah ini. File profil terkunci &")
-        print("   Chrome bisa menimpa perubahan kita dari memori.")
+        print(f"   {b} bisa menimpa perubahan kita dari memori.")
         sys.exit(1)
 
 
@@ -120,7 +145,7 @@ def cmd_prepare():
     die_if_chrome_open()
     main_root = get_main_root()
     print("=== PREPARE: salin profil utama -> profil kustom ===")
-    print("Lokasi Chrome utama:", main_root)
+    print("Lokasi browser utama:", main_root)
     if not (main_root / "Default").exists():
         print("Profil utama tidak ditemukan:", main_root)
         print("Cek lokasi di menu Pengaturan (menu 4).")
@@ -137,7 +162,7 @@ def cmd_push():
     die_if_chrome_open()
     main_root = get_main_root()
     print("=== PUSH: salin profil kustom -> profil utama ===")
-    print("Lokasi Chrome utama:", main_root)
+    print("Lokasi browser utama:", main_root)
     if not (CUSTOM_ROOT / "Default").exists():
         print("Profil kustom tidak ditemukan:", CUSTOM_ROOT)
         print("Jalankan 'prepare' dulu (menu 2 / sync.py prepare).")
@@ -145,16 +170,16 @@ def cmd_push():
     for rel in SYNC_RELS:
         copy_item(CUSTOM_ROOT / rel.replace("/", "\\"), main_root / rel.replace("/", "\\"))
     print("\nSelesai. Akun dari profil kustom dipindah ke utama.")
-    print("Buka Chrome utama — akun lama tetap ada, akun baru bertambah.")
+    print(f"Buka {browser_label()} utama — akun lama tetap ada, akun baru bertambah.")
     show_accounts(main_root, "utama")
 
 
 def cmd_status():
     print("=== STATUS ===")
-    print("Lokasi Chrome utama:", get_main_root())
+    print("Lokasi browser utama:", get_main_root())
     show_accounts(get_main_root(), "utama")
     show_accounts(CUSTOM_ROOT, "kustom")
-    print(f"Chrome berjalan: {chrome_running()}")
+    print(f"{browser_label()} berjalan: {chrome_running()}")
 
 
 if __name__ == "__main__":

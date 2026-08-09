@@ -13,6 +13,7 @@ Cara kerja: login dilakukan di **profil Chrome terpisah** (profil kustom) karena
 | Fitur | Keterangan |
 |---|---|
 | Menu CLI interaktif | Jalankan `python menu.py` — semua fitur dalam satu menu bernomor, lengkap dengan tabel status akun |
+| Multi-browser | Chrome, **Brave**, dan Edge didukung — executable dideteksi otomatis dari lokasi User Data yang dipilih di pengaturan |
 | Login massal otomatis | Email & password terisi otomatis dari `akungsuite.txt`, 1 tab per akun |
 | Auto-sinkron ke Chrome utama | Setelah login selesai di Chrome otomasi, **cukup tutup window** — akun otomatis tersimpan ke Chrome utama |
 | Anti-deteksi otomasi | Stealth script (webdriver spoof, plugin, language) + ketik dengan delay manusia |
@@ -28,29 +29,33 @@ Cara kerja: login dilakukan di **profil Chrome terpisah** (profil kustom) karena
 ## Kebutuhan (setiap perangkat baru)
 
 1. **Python 3.11+** — unduh di [python.org](https://www.python.org/downloads/) (centang *Add to PATH* saat install)
-2. **Google Chrome** — [google.com/chrome](https://www.google.com/chrome/) (versi apa pun, terbaru disarankan)
+2. **Browser Chromium (salah satu):**
+   - [Google Chrome](https://www.google.com/chrome/)
+   - [Brave](https://brave.com/download/)
+   - [Microsoft Edge](https://www.microsoft.com/edge) (bawaan Windows)
 3. **Playwright (Python)** — bisa install manual:
    ```cmd
    pip install playwright
    ```
    atau otomatis lewat menu `[1] Install semua yang diperlukan`.
 
-Tidak perlu `playwright install chromium` — script memakai Chrome yang sudah terpasang.
+Tidak perlu `playwright install chromium` — script memakai browser Chromium yang sudah terpasang.
 
 ---
 
 ## Setup Awal (sekali per perangkat)
 
-1. **Cek path Chrome** di `login.py` (variabel `CHROME_PATH`):
-   ```python
-   CHROME_PATH = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
-   ```
-   Sesuaikan jika lokasi Chrome kamu berbeda.
+1. **Executable browser dideteksi otomatis** (mengikuti browser di langkah 2). Tidak perlu mengubah kode manual.
 
-2. **Set lokasi Chrome utama** — jalankan `python menu.py`, pilih menu `[4] Pengaturan` → `[1] Ubah lokasi Chrome utama`, masukkan path User Data Chrome (contoh: `C:\Users\rizky\AppData\Local\Google\Chrome\User Data`). Disimpan di `config.json`.
+2. **Set lokasi browser utama** — jalankan `python menu.py`, pilih menu `[4] Pengaturan` → `[1] Ubah lokasi browser utama`, masukkan path User Data browser yang kamu pakai:
+   - Chrome: `C:\Users\rizky\AppData\Local\Google\Chrome\User Data`
+   - Brave: `C:\Users\rizky\AppData\Local\BraveSoftware\Brave-Browser\User Data`
+   - Edge: `C:\Users\rizky\AppData\Local\Microsoft\Edge\User Data`
+
+   Disimpan di `config.json`.
    - Path **divalidasi otomatis** (memeriksa `Local State` / `Default\Preferences`) — jika salah, muncul pesan error dan kamu bisa input ulang
    - Enter kosong = batal, lokasi lama tetap dipakai
-   - Path harus menunjuk ke folder **User Data** (bukan `chrome.exe`)
+   - Path harus menunjuk ke folder **User Data** (bukan `chrome.exe` / `brave.exe`)
 
 3. **Isi daftar akun** di `akungsuite.txt` (format `email|password`, satu per baris):
    ```
@@ -87,14 +92,14 @@ Menampilkan: nama project + credit, statistik akun (total / sudah sinkron / belu
 
 ### Alur lengkap menu 2 — Otomasi tambah akun
 
-1. Pastikan semua Chrome (termasuk Chrome utama) **tertutup**
-2. Pilih `[2]` → script menyiapkan profil otomasi & membuka Chrome otomasi
+1. Pastikan semua window browser (termasuk browser utama) **tertutup**
+2. Pilih `[2]` → script menyiapkan profil otomasi & membuka browser otomasi
 3. Isi **captcha** & klik **setuju** di setiap tab (script berhenti aman di sana)
-4. Setelah **semua akun berhasil login**, **tutup window Chrome otomasi**
-5. Script otomatis menyinkronkan (push) ke Chrome utama
-6. Buka Chrome utama → semua akun sudah ada di avatar ✅
+4. Setelah **semua akun berhasil login**, **tutup window browser otomasi**
+5. Script otomatis menyinkronkan (push) ke browser utama
+6. Buka browser utama → semua akun sudah ada di avatar ✅
 
-> **⚠️ Aturan emas: Chrome harus TERTUTUP saat script menyiapkan/menyinkronkan profil** (script otomatis menolak jika Chrome masih jalan).
+> **⚠️ Aturan emas: browser utama harus TERTUTUP saat script menyiapkan/menyinkronkan profil** (script otomatis menolak jika masih jalan).
 
 ---
 
@@ -110,21 +115,21 @@ python sync.py prepare
 ```cmd
 python login.py
 ```
-*Membuka Chrome kustom, mengisi email + password semua akun di `akungsuite.txt`. Berhenti otomatis di halaman captcha / ToS. Kamu selesaikan manual: isi captcha → klik Next → setuju, di tiap tab. Setelah selesai, **tutup Chrome**.*
+*Membuka browser kustom, mengisi email + password semua akun di `akungsuite.txt`. Berhenti otomatis di halaman captcha / ToS. Kamu selesaikan manual: isi captcha → klik Next → setuju, di tiap tab. Setelah selesai, **tutup browser**.*
 
 ```cmd
 python sync.py push
 ```
 *Menyalin hasil login dari profil kustom → profil utama. Akun lama tetap, akun baru bertambah.*
 
-**Buka Chrome utama → semua akun sudah ada di avatar.**
+**Buka browser utama → semua akun sudah ada di avatar.**
 
 ### Alur 2 — Cek status
 
 ```cmd
 python sync.py status
 ```
-*Menampilkan daftar akun di profil utama & kustom, dan status Chrome.*
+*Menampilkan daftar akun di profil utama & kustom, dan status browser.*
 
 ### Alur 3 — Tes cepat (1 akun)
 
@@ -139,9 +144,9 @@ python login.py --limit 1
 
 | Masalah | Solusi |
 |---|---|
-| `Chrome SEDANG BERJALAN...` | Tutup semua window Chrome, lalu jalankan ulang perintah |
-| Path lokasi Chrome utama ditolak | Path harus folder **User Data** (berisi `Local State`), bukan `chrome.exe` — contoh benar: `C:\Users\rizky\AppData\Local\Google\Chrome\User Data` |
-| Akun tidak muncul di Chrome utama | Pastikan `push` dijalankan, Chrome utama tertutup saat itu, lalu baru buka |
+| `Chrome SEDANG BERJALAN...` | Tutup semua window browser (Chrome/Brave/Edge), lalu jalankan ulang perintah |
+| Path lokasi browser utama ditolak | Path harus folder **User Data** (berisi `Local State`), bukan `chrome.exe` — contoh benar: `C:\Users\rizky\AppData\Local\Google\Chrome\User Data` (Brave: `...\BraveSoftware\Brave-Browser\User Data`) |
+| Akun tidak muncul di browser utama | Pastikan `push` dijalankan, browser utama tertutup saat itu, lalu baru buka |
 | Halaman berhenti di ToS Workspace | Itu normal untuk akun baru — klik **setuju** di tab tersebut |
 | Captcha tidak terselesaikan | Script sengaja berhenti — isi captcha manual, script tidak bisa lewati |
 | Halaman tidak menemukan field password | Kemungkinan akun sudah login / halaman berbeda — tab dibiarkan terbuka untuk ditangani manual (status `stop-unknown`) |
@@ -154,13 +159,13 @@ python login.py --limit 1
 ```
 autologin-gsuite/
 ├── menu.py            # Menu CLI utama (python menu.py)
-├── login.py           # Script login massal (profil kustom)
-├── sync.py            # Pipeline: prepare / push / status (Chrome utama)
+├── login.py           # Script login massal (profil kustom, multi-browser)
+├── sync.py            # Pipeline: prepare / push / status (browser utama)
 ├── akungsuite.txt     # Daftar akun (email|password) — TIDAK ikut GitHub
 ├── akungsuite.example.txt  # Template daftar akun (aman di-push)
-├── config.json        # Konfigurasi lokal: lokasi Chrome utama — TIDAK ikut GitHub
+├── config.json        # Konfigurasi lokal: lokasi browser utama — TIDAK ikut GitHub
 ├── config.example.json      # Template konfigurasi (aman di-push)
-├── profiles/utama/    # Profil Chrome kustom (dibuat otomatis saat menu 2)
+├── profiles/utama/    # Profil browser kustom (dibuat otomatis saat menu 2)
 └── contoh/            # Referensi HTML halaman Google (untuk pengembangan)
 ```
 
