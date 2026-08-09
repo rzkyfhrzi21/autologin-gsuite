@@ -46,7 +46,7 @@ PASS_NEXT = "#passwordNext"
 CAPTCHA_INPUT = "#ca"
 CAPTCHA_IMG = "#captchaimg"
 
-TYPE_DELAY_MS = 90
+TYPE_DELAY_MS = 45
 
 STEALTH_INIT_SCRIPT = """
 (() => {
@@ -121,11 +121,11 @@ def chrome_running():
 
 async def type_human(page, locator, value):
     await locator.click()
-    await page.wait_for_timeout(400)
+    await page.wait_for_timeout(200)
     for ch in value:
         await locator.type(ch)
         await page.wait_for_timeout(TYPE_DELAY_MS)
-    await page.wait_for_timeout(500)
+    await page.wait_for_timeout(250)
 
 
 async def is_captcha_page(page):
@@ -166,7 +166,7 @@ async def login_in_tab(context, email, password, label, results, page=None):
             f"(HTTP {response.status if response else 'n/a'})",
             flush=True,
         )
-        await page.wait_for_timeout(2500)
+        await page.wait_for_timeout(1250)
 
         # ---- LANGKAH 1: EMAIL ----
         el = page.locator(EMAIL_INPUT)
@@ -178,7 +178,7 @@ async def login_in_tab(context, email, password, label, results, page=None):
         # ---- LANGKAH 2: PASSWORD (bisa muncul 1x atau 2x bila ada captcha) ----
         password_done = False
         for round_no in range(1, 4):
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(1500)
             url = page.url
 
             # Sudah masuk? (halaman welcome/consent atau myaccount = STOP, biar user klik setuju)
