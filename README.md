@@ -47,7 +47,9 @@ Tidak perlu `playwright install chromium` — script memakai browser Chromium ya
 
 1. **Executable browser dideteksi otomatis** (mengikuti browser di langkah 2). Tidak perlu mengubah kode manual.
 
-2. **Set lokasi browser utama** — jalankan `python menu.py`, pilih menu `[4] Pengaturan` → `[1] Ubah lokasi browser utama`, masukkan path User Data browser yang kamu pakai:
+2. **Set lokasi browser utama** — jalankan `python menu.py`, pilih menu `[4] Pengaturan`:
+   - `[1] Ubah lokasi manual` — ketik path User Data browser (contoh di bawah)
+   - `[2] Deteksi otomatis browser` — pilih Chrome / Brave / Edge, path User Data terisi otomatis + divalidasi
    - Chrome: `C:\Users\rizky\AppData\Local\Google\Chrome\User Data`
    - Brave: `C:\Users\rizky\AppData\Local\BraveSoftware\Brave-Browser\User Data`
    - Edge: `C:\Users\rizky\AppData\Local\Microsoft\Edge\User Data`
@@ -87,7 +89,7 @@ Menampilkan: nama project + credit, statistik akun (total / sudah sinkron / belu
 | `[1]` | **Install semua yang diperlukan** — cek Python & Chrome, install Playwright |
 | `[2]` | **Otomasi tambah akun** — siapkan profil → buka Chrome otomasi → isi captcha & setuju manual → **tutup window Chrome otomasi** → otomatis sinkron ke Chrome utama |
 | `[3]` | **Bersihkan penyimpanan** — hapus profil Chrome otomasi (pakai setelah semua akun sinkron) |
-| `[4]` | **Pengaturan** — ubah lokasi Chrome utama (validasi otomatis; kembali ke menu utama: `[9]`) |
+| `[4]` | **Pengaturan** — ubah lokasi browser utama manual atau **deteksi otomatis** (pilih Chrome/Brave/Edge; kembali ke menu utama: `[9]`) |
 | `[0]` | **Keluar** |
 
 ### Alur lengkap menu 2 — Otomasi tambah akun

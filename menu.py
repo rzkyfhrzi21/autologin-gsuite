@@ -153,13 +153,16 @@ def show_main_menu():
     return total, done, pending
 
 
-EXE_CANDIDATES = [
-    ("Chrome", r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
-    ("Chrome", r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
-    ("Brave", r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"),
-    ("Brave", r"C:\Program Files (x86)\BraveSoftware\Brave-Browser\Application\brave.exe"),
-    ("Edge", r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
-    ("Edge", r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"),
+BROWSER_PROFILES = [
+    ("Chrome", Path.home() / "AppData" / "Local" / "Google" / "Chrome" / "User Data",
+     [r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+      r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"]),
+    ("Brave", Path.home() / "AppData" / "Local" / "BraveSoftware" / "Brave-Browser" / "User Data",
+     [r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
+      r"C:\Program Files (x86)\BraveSoftware\Brave-Browser\Application\brave.exe"]),
+    ("Edge", Path.home() / "AppData" / "Local" / "Microsoft" / "Edge" / "User Data",
+     [r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+      r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"]),
 ]
 
 
@@ -168,7 +171,8 @@ def cmd_install():
     print(f"{BOLD}=== [1] INSTALL SEMUA YANG DIPERLUKAN ==={RESET}")
     print()
     print("  • Python:", sys.version.split()[0])
-    detected = sorted({name for name, p in EXE_CANDIDATES if Path(p).exists()})
+    detected = sorted({name for name, _, exes in BROWSER_PROFILES
+                       if any(Path(p).exists() for p in exes)})
     if detected:
         print("  • Browser:", " / ".join(detected))
     else:
@@ -190,7 +194,7 @@ def cmd_otomasi():
     print()
     print(f"{YELLOW}  ⚠️  Pastikan SEMUA window browser (termasuk browser utama) ditutup.{RESET}")
     if chrome_running():
-        print(f"{RED}  ❌ Chrome masih berjalan. Tutup dulu, lalu ulangi menu ini.{RESET}")
+        print(f"{RED}  ❌ Browser utama masih berjalan. Tutup dulu, lalu ulangi menu ini.{RESET}")
         input("\n  Tekan Enter untuk kembali...")
         return
     if not ACCOUNTS_FILE.exists():
@@ -248,6 +252,45 @@ def cmd_bersihkan():
     input("\n  Tekan Enter untuk kembali...")
 
 
+def pilih_browser_otomatis(cfg):
+    os.system("cls" if os.name == "nt" else "clear")
+    active = str(main_path()).lower()
+    box(f"{BOLD}{CYAN}🔎 DETEKSI BROWSER{RESET}", [
+        ("Pilih browser", "path User Data terisi otomatis"),
+    ])
+    for i, (name, default_path, exes) in enumerate(BROWSER_PROFILES, 1):
+        exe_ok = any(Path(p).exists() for p in exes)
+        data_ok = default_path.exists() and (default_path / "Local State").exists()
+        mark = " ← aktif" if str(default_path).lower() == active else ""
+        exe_txt = "✅ ditemukan" if exe_ok else "❌ tidak terinstall"
+        data_txt = "✅ siap" if data_ok else "❌ belum pernah dipakai (buka browser dulu sekali)"
+        print(f"  {BOLD}{GREEN}[{i}]{RESET} {name}{mark}")
+        print(f"      executable : {exe_txt}")
+        print(f"      User Data  : {data_txt}")
+        print(f"      path       : {default_path}")
+        print()
+    choice = input("  Pilih browser [1-3] / kosong untuk batal: ").strip()
+    if not choice:
+        print(f"{YELLOW}  ❌ Tidak diubah.{RESET}")
+        return
+    if not choice.isdigit() or not (1 <= int(choice) <= len(BROWSER_PROFILES)):
+        print(f"{RED}  Pilihan tidak valid.{RESET}")
+        return
+    name, default_path, exes = BROWSER_PROFILES[int(choice) - 1]
+    exe_ok = any(Path(p).exists() for p in exes)
+    data_ok = default_path.exists() and (default_path / "Local State").exists()
+    if not exe_ok:
+        print(f"{RED}  ❌ {name} tidak terinstall — install dulu, lalu ulangi.{RESET}")
+        return
+    if not data_ok:
+        print(f"{RED}  ❌ User Data {name} belum ada — buka {name} satu kali, tutup, lalu ulangi.{RESET}")
+        return
+    cfg["chrome_main_path"] = str(default_path)
+    save_config(cfg)
+    print(f"{GREEN}  ✅ Browser utama diset ke {name}.{RESET}")
+    print(f"{DIM}  Path: {default_path}{RESET}")
+
+
 def cmd_pengaturan():
     while True:
         os.system("cls" if os.name == "nt" else "clear")
@@ -258,11 +301,12 @@ def cmd_pengaturan():
             ("✅ Path valid", "Ya" if p.exists() else "Tidak — periksa path"),
         ])
         print("╔" + "═" * (W - 2) + "╗")
-        print(f"║  {BOLD}{GREEN}[1]{RESET} Ubah lokasi browser utama{' ' * (W - 30)}║")
+        print(f"║  {BOLD}{GREEN}[1]{RESET} Ubah lokasi manual{' ' * (W - 24)}║")
+        print(f"║  {BOLD}{CYAN}[2]{RESET} Deteksi otomatis browser{' ' * (W - 31)}║")
         print(f"║  {BOLD}{RED}[9]{RESET} Kembali ke menu utama{' ' * (W - 30)}║")
         print(f"╚{'═' * (W - 2)}╝")
         print()
-        choice = input("  Pilih [1 / 9]: ").strip()
+        choice = input("  Pilih [1 / 2 / 9]: ").strip()
         if choice == "1":
             print()
             while True:
@@ -284,6 +328,9 @@ def cmd_pengaturan():
                 print(f"{YELLOW}  Pastikan path menunjuk ke folder {BOLD}User Data{RESET} "
                       f"(Chrome/Brave/Edge), bukan ke chrome.exe/brave.exe.{RESET}")
                 print()
+            input("  Tekan Enter untuk lanjut...")
+        elif choice == "2":
+            pilih_browser_otomatis(cfg)
             input("  Tekan Enter untuk lanjut...")
         elif choice == "9":
             return
