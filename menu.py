@@ -364,7 +364,9 @@ def main():
         show_main_menu()
         choice = input(f"  {BOLD}Pilih menu [0-4]: {RESET}").strip()
         if choice == "0":
-            print(f"\n  {GREEN}Bye! 👋{RESET}\n")
+            print(f"\n  {GREEN}Bye! 👋{RESET}")
+            print(f"  Terima kasih sudah memakai tools ini 🙏")
+            print(f"  {DIM}by rzkyfhrzi21 | @rzkydev666{RESET}\n")
             break
         elif choice == "1":
             cmd_install()
