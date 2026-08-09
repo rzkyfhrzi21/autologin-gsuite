@@ -27,21 +27,42 @@ MAGENTA = "\033[35m"
 
 TITLE = f"{BOLD}{GREEN}🌱 AutoLogin GSuite CLI 🌱{RESET}"
 CREDIT = f"{DIM}by rzkyfhrzi21 | @rzkydev666{RESET}"
-W = 56
+W = 64
 
 
 def box(title, rows):
-    print()
-    print(f"╔{'═' * (W - 2)}╗")
-    pad = max(0, W - 2 - len(title))
+    """Panel bergaya 'Bercocok Tanam CLI': judul tengah, baris 'Label : value'."""
+    label_w = max([len(l) for l, _ in rows] + [6])
+    val_w = max([len(v) for v, _ in rows] + [8])
+    inner = label_w + 3 + val_w
+    bw = max(W, inner + 4)
+    pad = max(0, bw - 2 - len(title))
     left = pad // 2
-    print(f"║{' ' * left}{title}{' ' * (pad - left)}║")
-    print(f"╠{'═' * (W - 2)}╣")
-    for label, value in rows:
-        line = f"{label}: {value}"
-        print(f"║  {line}{' ' * max(0, W - 4 - len(line))}║")
-    print(f"╚{'═' * (W - 2)}╝")
     print()
+    print(f"╔{'═' * (bw - 2)}╗")
+    print(f"║{' ' * left}{title}{' ' * (pad - left)}║")
+    print(f"╠{'═' * (bw - 2)}╣")
+    for label, value in rows:
+        if value.startswith("✅") or value == "Ya" or value.replace(",", "").isdigit():
+            value = f"{GREEN}{value}{RESET}"
+        line = f"{CYAN}{label:<{label_w}}{RESET} : {value}"
+        print(f"║  {line}{' ' * max(0, bw - 4 - len(line))}║")
+    print(f"╚{'═' * (bw - 2)}╝")
+    print()
+
+
+def menu_row(text, color):
+    """Baris menu dalam box dengan padding tepat (warna hanya di teks)."""
+    content = f"  {color}{text}{RESET}"
+    print(f"║{content}{' ' * (W - 2 - len(content))}║")
+
+
+def ask(prompt=""):
+    """input() yang tidak crash saat input tertutup (EOF/pipe habis)."""
+    try:
+        return input(prompt).strip()
+    except EOFError:
+        return None
 
 
 def load_config():
@@ -133,16 +154,17 @@ def main_account_emails():
 
 
 def draw_table(accounts, synced):
-    print(f"╔════╦{'═' * 38}╦════════╗")
-    print(f"║{'No':^4}║{'Email':^38}║{'Status':^8}║")
-    print(f"╠════╬{'═' * 38}╬════════╣")
+    e = W - 2 - 15
+    print(f"╔════╦{'═' * e}╦════════╗")
+    print(f"║{'No':^4}║{'Email':^{e}}║{'Status':^8}║")
+    print(f"╠════╬{'═' * e}╬════════╣")
     if not accounts:
-        print(f"║{'':4}║{'akungsuite.txt kosong / tidak ada':^38}║{'':8}║")
+        print(f"║{'':4}║{'akungsuite.txt kosong / tidak ada':^{e}}║{'':8}║")
     else:
         for i, (email, _) in enumerate(accounts, 1):
             status = f"{GREEN}✅ Sinkron{RESET}" if email in synced else f"{YELLOW}⏳ Belum{RESET}"
-            print(f"║{i:^4}║  {email:<36}║ {status:^8}║")
-    print(f"╚════╩{'═' * 38}╩════════╝")
+            print(f"║{i:^4}║  {email:<{e - 3}}║ {status:^8}║")
+    print(f"╚════╩{'═' * e}╩════════╝")
     print()
 
 
@@ -162,12 +184,12 @@ def show_main_menu():
     print(f"{BOLD}Daftar akun yang bisa diotomasi:{RESET}")
     draw_table(accounts, synced)
     print("╔" + "═" * (W - 2) + "╗")
-    print(f"║  {BOLD}MENU:{RESET}{' ' * (W - 10)}║")
-    print(f"║  {BOLD}{GREEN}[1]{RESET} Install semua yang diperlukan{' ' * (W - 34)}║")
-    print(f"║  {BOLD}{GREEN}[2]{RESET} Otomasi tambah akun{' ' * (W - 30)}║")
-    print(f"║  {BOLD}{YELLOW}[3]{RESET} Bersihkan penyimpanan{' ' * (W - 31)}║")
-    print(f"║  {BOLD}{CYAN}[4]{RESET} Pengaturan (lokasi browser utama){' ' * (W - 42)}║")
-    print(f"║  {BOLD}{RED}[0]{RESET} Keluar{' ' * (W - 16)}║")
+    menu_row("MENU:", BOLD)
+    menu_row("[1] Install semua yang diperlukan", GREEN)
+    menu_row("[2] Otomasi tambah akun", GREEN)
+    menu_row("[3] Bersihkan penyimpanan", YELLOW)
+    menu_row("[4] Pengaturan (lokasi browser utama)", CYAN)
+    menu_row("[0] Keluar", RED)
     print(f"╚{'═' * (W - 2)}╝")
     print()
     return total, done, pending
@@ -215,18 +237,18 @@ def cmd_otomasi():
     print(f"{YELLOW}  ⚠️  Pastikan SEMUA window browser (termasuk browser utama) ditutup.{RESET}")
     if chrome_running():
         print(f"{RED}  ❌ Browser utama masih berjalan. Tutup dulu, lalu ulangi menu ini.{RESET}")
-        input("\n  Tekan Enter untuk kembali...")
+        ask("\n  Tekan Enter untuk kembali...")
         return
     if not ACCOUNTS_FILE.exists():
         print(f"{RED}  ❌ akungsuite.txt tidak ditemukan. Salin dari akungsuite.example.txt{RESET}")
-        input("\n  Tekan Enter untuk kembali...")
+        ask("\n  Tekan Enter untuk kembali...")
         return
 
     print(f"{CYAN}  [1/3] Menyiapkan profil otomasi (prepare)...{RESET}")
     r = subprocess.run([sys.executable, "-u", "sync.py", "prepare"], cwd=BASE)
     if r.returncode != 0:
         print(f"{RED}  ❌ Prepare gagal. Tekan Enter untuk kembali...{RESET}")
-        input()
+        ask()
         return
 
     print()
@@ -242,13 +264,13 @@ def cmd_otomasi():
     r = subprocess.run([sys.executable, "-u", "sync.py", "push"], cwd=BASE)
     if r.returncode != 0:
         print(f"{RED}  ❌ Push gagal. Tekan Enter untuk kembali...{RESET}")
-        input()
+        ask()
         return
 
     print()
     print(f"{GREEN}  ✅ Selesai! Semua akun sudah tersimpan ke browser utama.{RESET}")
     print(f"{GREEN}  Buka browser utama untuk memeriksa daftar akun.{RESET}")
-    input("\n  Tekan Enter untuk kembali...")
+    ask("\n  Tekan Enter untuk kembali...")
 
 
 def cmd_bersihkan():
@@ -260,7 +282,7 @@ def cmd_bersihkan():
     print(f"{RED}  ⚠️  Jalankan ini HANYA setelah semua akun sudah sinkron{RESET}")
     print(f"{RED}  ke Chrome utama.{RESET}")
     print()
-    ans = input("  Yakin hapus? Ketik 'ya' untuk konfirmasi: ").strip().lower()
+    ans = ask("  Yakin hapus? Ketik 'ya' untuk konfirmasi: ").strip().lower()
     if ans != "ya":
         print(f"{YELLOW}  Dibatalkan.{RESET}")
     elif CUSTOM_ROOT.exists():
@@ -269,7 +291,7 @@ def cmd_bersihkan():
         print(f"{DIM}  Profil otomasi akan dibuat ulang otomatis saat menu 2.{RESET}")
     else:
         print(f"{GREEN}  ✅ Penyimpanan sudah bersih (profiles/ tidak ada).{RESET}")
-    input("\n  Tekan Enter untuk kembali...")
+    ask("\n  Tekan Enter untuk kembali...")
 
 
 def pilih_browser_otomatis(cfg):
@@ -289,8 +311,8 @@ def pilih_browser_otomatis(cfg):
         print(f"      User Data  : {data_txt}")
         print(f"      path       : {default_path}")
         print()
-    choice = input("  Pilih browser [1-3] / kosong untuk batal: ").strip()
-    if not choice:
+    choice = ask("  Pilih browser [1-3] / kosong untuk batal: ")
+    if choice is None or not choice:
         print(f"{YELLOW}  ❌ Tidak diubah.{RESET}")
         return
     if not choice.isdigit() or not (1 <= int(choice) <= len(BROWSER_PROFILES)):
@@ -321,16 +343,18 @@ def cmd_pengaturan():
             ("✅ Path valid", "Ya" if p.exists() else "Tidak — periksa path"),
         ])
         print("╔" + "═" * (W - 2) + "╗")
-        print(f"║  {BOLD}{GREEN}[1]{RESET} Ubah lokasi manual{' ' * (W - 24)}║")
-        print(f"║  {BOLD}{CYAN}[2]{RESET} Deteksi otomatis browser{' ' * (W - 31)}║")
-        print(f"║  {BOLD}{RED}[9]{RESET} Kembali ke menu utama{' ' * (W - 30)}║")
+        menu_row("[1] Ubah lokasi manual", GREEN)
+        menu_row("[2] Deteksi otomatis browser", CYAN)
+        menu_row("[9] Kembali ke menu utama", RED)
         print(f"╚{'═' * (W - 2)}╝")
         print()
-        choice = input("  Pilih [1 / 2 / 9]: ").strip()
+        choice = ask("  Pilih [1 / 2 / 9]: ")
+        if choice is None:
+            return
         if choice == "1":
             print()
             while True:
-                new_path = input("  Masukkan path User Data browser utama\n"
+                new_path = ask("  Masukkan path User Data browser utama\n"
                                  "  (kosong untuk batal): ").strip().strip('"')
                 if not new_path:
                     print(f"{YELLOW}  ❌ Tidak diubah — kembali ke menu pengaturan.{RESET}")
@@ -348,21 +372,24 @@ def cmd_pengaturan():
                 print(f"{YELLOW}  Pastikan path menunjuk ke folder {BOLD}User Data{RESET} "
                       f"(Chrome/Brave/Edge), bukan ke chrome.exe/brave.exe.{RESET}")
                 print()
-            input("  Tekan Enter untuk lanjut...")
+            ask("  Tekan Enter untuk lanjut...")
         elif choice == "2":
             pilih_browser_otomatis(cfg)
-            input("  Tekan Enter untuk lanjut...")
+            ask("  Tekan Enter untuk lanjut...")
         elif choice == "9":
             return
         else:
             print(f"{RED}  Pilihan tidak valid.{RESET}")
-            input("  Tekan Enter untuk lanjut...")
+            ask("  Tekan Enter untuk lanjut...")
 
 
 def main():
     while True:
         show_main_menu()
-        choice = input(f"  {BOLD}Pilih menu [0-4]: {RESET}").strip()
+        choice = ask(f"  {BOLD}Pilih menu [0-4]: {RESET}")
+        if choice is None:
+            print(f"\n  {GREEN}Bye! 👋{RESET}")
+            break
         if choice == "0":
             print(f"\n  {GREEN}Bye! 👋{RESET}")
             print(f"  Terima kasih sudah memakai tools ini 🙏")
@@ -378,7 +405,7 @@ def main():
             cmd_pengaturan()
         else:
             print(f"\n  {RED}Pilihan tidak valid.{RESET}")
-            input("  Tekan Enter untuk lanjut...")
+            ask("  Tekan Enter untuk lanjut...")
 
 
 if __name__ == "__main__":
