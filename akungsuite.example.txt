@@ -1,0 +1,12 @@
+# AKUN GSUITE UNTUK AUTO LOGIN
+# Format: email|password (satu akun per baris)
+# Baris yang diawali # diabaikan (komentar)
+#
+# CARA PAKAI:
+# 1. Salin file ini menjadi `akungsuite.txt` di folder yang sama
+# 2. Isi dengan akun asli kamu (contoh di bawah bukan akun sungguhan)
+# 3. `akungsuite.txt` TIDAK ikut ke GitHub (di-gitignore) demi keamanan password
+#
+# Contoh format:
+# akun1@perusahaan.com|password1
+# akun2@perusahaan.com|password2
